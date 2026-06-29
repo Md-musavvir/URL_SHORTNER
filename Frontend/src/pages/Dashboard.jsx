@@ -20,9 +20,7 @@ function Dashboard() {
       const response = await getAllUrls();
       setUrls(response.data.data.urls);
     } catch (error) {
-      console.log("Status:", error.response?.status);
-      console.log("Response:", error.response?.data);
-      console.log(error);
+      console.error(error.response?.data || error.message);
     } finally {
       setLoading(false);
     }
