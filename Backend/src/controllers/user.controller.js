@@ -93,6 +93,7 @@ const loginUser = AsyncHandler(async (req, res) => {
   const options = {
     httpOnly: true,
     secure: true,
+    sameSite: "none",
   };
   await redisClient.del(key);
 
@@ -124,6 +125,7 @@ const logoutUser = AsyncHandler(async (req, res) => {
   const options = {
     httpOnly: true,
     secure: true,
+    sameSite: "none",
   };
 
   return res
