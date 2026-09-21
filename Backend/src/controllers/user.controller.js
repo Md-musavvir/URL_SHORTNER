@@ -63,26 +63,35 @@ const loginUser = AsyncHandler(async (req, res) => {
   if (!email || !password) {
     throw new ApiError(400, "Credentials are required");
   }
+
   const emailTrimmed = email.trim().toLowerCase();
   const passwordTrimmed = password.trim();
   const key = `user:${emailTrimmed}`;
-  let currentCount = await redisClient.incr(key);
-  if (currentCount === 1) {
-    await redisClient.expire(key, 60);
-  }
-  if (currentCount > 6) {
-    throw new ApiError(429, "limit exceeded");
+
+  // Rate limiting — fail open if Redis is unavailable
+  try {
+    let currentCount = await redisClient.incr(key);
+    if (currentCount === 1) {
+      await redisClient.expire(key, 60);
+    }
+    if (currentCount > 6) {
+      throw new ApiError(429, "limit exceeded");
+    }
+  } catch (err) {
+    if (err instanceof ApiError) throw err; // re-throw 429
+    console.log("Redis unavailable, skipping rate limit:", err.message);
   }
 
   const user = await User.findOne({ email: emailTrimmed });
   if (!user) {
-    throw new ApiError(404, "user does not  exist");
+    throw new ApiError(404, "user does not exist");
   }
 
   const isPasswordCorrect = await user.isPasswordCorrect(passwordTrimmed);
   if (!isPasswordCorrect) {
     throw new ApiError(401, "Incorrect password");
   }
+
   const { accessToken, refreshToken } = await generateTokens(user._id);
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken",
@@ -90,12 +99,19 @@ const loginUser = AsyncHandler(async (req, res) => {
   if (!loggedInUser) {
     throw new ApiError(500, "Something went wrong while logging in user");
   }
+
+  // Delete rate limit key — fail silently if Redis is down
+  try {
+    await redisClient.del(key);
+  } catch (err) {
+    console.log("Redis del failed:", err.message);
+  }
+
   const options = {
     httpOnly: true,
     secure: true,
     sameSite: "none",
   };
-  await redisClient.del(key);
 
   return res
     .status(200)
@@ -104,12 +120,8 @@ const loginUser = AsyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        {
-          user: loggedInUser,
-          accessToken,
-          refreshToken,
-        },
-        "User loggedin succesfully",
+        { user: loggedInUser, accessToken, refreshToken },
+        "User logged in successfully",
       ),
     );
 });
