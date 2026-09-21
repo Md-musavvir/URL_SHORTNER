@@ -74,7 +74,7 @@ const redirectUrl = AsyncHandler(async (req, res) => {
   if (!url) {
     throw new ApiError(404, "URL not found");
   }
-  await redisClient.setEx(shortKey, 25000, url.originalUrl);
+  await redisClient.setex(shortKey, 25000, url.originalUrl);
   url.clicks += 1;
   await url.save();
 
@@ -116,7 +116,7 @@ const getAllUrl = AsyncHandler(async (req, res) => {
     updatedAt: url.updatedAt,
   }));
 
-  await redisClient.setEx(cacheKey, 100, JSON.stringify(urls));
+  await redisClient.setex(cacheKey, 100, JSON.stringify(urls));
 
   return res
     .status(200)
